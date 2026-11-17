@@ -53,6 +53,13 @@ app.use("/api/github", require("./routes/githubRoutes"))
 app.use("/api/system-design", require("./routes/systemDesign"))
 app.use("/api/coding", require("./routes/coding"))
 app.use("/api/language-eval", require("./routes/languageEval"))
+app.use("/api/peer-meetings", require("./routes/peer-meetings"))
+app.use("/api/voice-resume", require("./routes/voiceResume"))
+app.use("/api/match", require("./routes/match"))
+app.use("/api/agent", require("./routes/agent"))
+app.use("/api/events", require("./routes/events"))
+app.use("/api/market", require("./routes/market"))
+app.use("/api/metrics", require("./routes/metrics"))
 
 
 // Health check endpoint
@@ -63,24 +70,6 @@ app.get("/", (req, res) => {
         status: "running"
     })
 })
-
-// TEMPORARY DEBUG: Test match analysis without auth - REMOVE AFTER DEBUGGING
-app.post("/debug/test-match", async (req, res) => {
-    console.log("[DEBUG] /debug/test-match hit!");
-    const resumeService = require("./routes/resumeParser");
-    try {
-        const resumeText = "John Doe, Software Engineer with 2 years experience. Skills: JavaScript, Node.js, React, Python, SQL, Git. Education: B.Tech Computer Science from IIT Delhi 2024. Experience: Software Intern at Google (2023-2024) - built REST APIs using Node.js and Express.";
-        const jd = req.body.jobDescription || "Backend Engineer - Requirements: Node.js, Python, REST APIs, SQL, Docker, Git. 0-2 years experience.";
-
-        console.log("[DEBUG] Calling matchAnalysis...");
-        const result = await resumeService.matchAnalysis(resumeText, jd);
-        console.log("[DEBUG] matchAnalysis returned:", JSON.stringify(result).substring(0, 300));
-        res.json(result);
-    } catch (error) {
-        console.error("[DEBUG] matchAnalysis FAILED:", error);
-        res.status(500).json({ error: error.message, stack: error.stack });
-    }
-});
 
 // 404 handler
 app.use((req, res) => {

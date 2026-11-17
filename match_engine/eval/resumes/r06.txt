@@ -1,0 +1,7 @@
+Ananya Iyer
+ananya.iyer@example.com
+Final-year B.Tech student, VJTI Mumbai (2026)
+Projects:
+- Churn predictor: scikit-learn, Pandas, hypothesis testing.
+- Movie recommender in Python with collaborative filtering.
+Skills: Python, Pandas, NumPy, scikit-learn, SQL, Statistics, Machine Learning

@@ -32,6 +32,38 @@ interface JobNotification {
     type: "new" | "updated" | "recommended"
     description: string
     url?: string
+    position?: number
+    source?: string
+    match_details?: {
+        components: Record<string, number>
+        weights: Record<string, number>
+        matched_skills: string[]
+        missing_skills: string[]
+        reasons: string[]
+        engine?: string
+    }
+}
+
+type JobEvent = "impression" | "click" | "save" | "apply" | "dismiss"
+
+// Best-effort interaction logging for personalisation / learning-to-rank.
+function logJobEvents(jobs: JobNotification[], event: JobEvent) {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
+    if (!token || jobs.length === 0) return
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+            events: jobs.map((j) => ({
+                job_id: j.id,
+                event,
+                position: j.position,
+                score: j.match,
+                features: j.match_details?.components,
+            })),
+        }),
+        keepalive: true,
+    }).catch(() => {})
 }
 
 export default function LinkedInJobsPage() {
@@ -95,6 +127,7 @@ export default function LinkedInJobsPage() {
 
                 console.log("Frontend: Received data:", data)
                 setNotifications(data.jobs || [])
+                logJobEvents(data.jobs || [], "impression")
             } catch (error) {
                 console.warn("Frontend: Error fetching jobs:", error)
                 setNotifications([])
@@ -111,6 +144,7 @@ export default function LinkedInJobsPage() {
     }, [user])
 
     const handleApplyClick = (job: JobNotification) => {
+        logJobEvents([job], "click")
         // Open LinkedIn in a new tab
         if (job.url) {
             window.open(job.url, '_blank', 'noopener,noreferrer')
@@ -145,6 +179,9 @@ export default function LinkedInJobsPage() {
                     company: selectedJob.company,
                     location: selectedJob.location,
                     job_url: selectedJob.url,
+                    position: selectedJob.position,
+                    score: selectedJob.match,
+                    features: selectedJob.match_details?.components,
                 }),
             })
 
@@ -283,6 +320,30 @@ export default function LinkedInJobsPage() {
                                                     </div>
                                                 </div>
                                                 <p className="text-muted-foreground mb-3">{job.description}</p>
+                                                {job.match_details && (
+                                                    <details className="mb-3 text-sm" onToggle={(e) => { if ((e.target as HTMLDetailsElement).open) logJobEvents([job], "click") }}>
+                                                        <summary className="cursor-pointer text-primary">Why {job.match}%?</summary>
+                                                        <div className="mt-2 space-y-2">
+                                                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                                                                {Object.entries(job.match_details.components).map(([k, v]) => (
+                                                                    <div key={k} className="rounded-md border border-border/40 p-2">
+                                                                        <div className="text-xs text-muted-foreground">{k.replace("_", " ")} ({Math.round((job.match_details?.weights[k] ?? 0) * 100)}%)</div>
+                                                                        <div className="font-medium">{Math.round(v * 100)}</div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                            {job.match_details.matched_skills.length > 0 && (
+                                                                <p><span className="text-emerald-600">You have:</span> {job.match_details.matched_skills.join(", ")}</p>
+                                                            )}
+                                                            {job.match_details.missing_skills.length > 0 && (
+                                                                <p><span className="text-amber-600">To learn:</span> {job.match_details.missing_skills.join(", ")}</p>
+                                                            )}
+                                                            <ul className="list-disc pl-5 text-muted-foreground">
+                                                                {job.match_details.reasons.map((r) => <li key={r}>{r}</li>)}
+                                                            </ul>
+                                                        </div>
+                                                    </details>
+                                                )}
                                                 <p className="text-xs text-muted-foreground">Posted {job.posted}</p>
                                             </div>
                                         </div>

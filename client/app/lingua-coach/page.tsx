@@ -124,6 +124,7 @@ export default function LinguaCoachPage() {
   const audioChunksRef = useRef<Blob[]>([]);
   const speechRecognitionRef = useRef<any>(null);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const latestInputRef = useRef<string>("");
 
   const activePrompt = SAMPLE_PRACTICE_PROMPTS[selectedType][currentPromptIdx];
   const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5555";
@@ -137,6 +138,11 @@ export default function LinguaCoachPage() {
     };
   }, []);
 
+  const handleInputChange = (text: string) => {
+    setUserInput(text);
+    latestInputRef.current = text;
+  };
+
   const getSupportedMimeType = () => {
     if (typeof MediaRecorder === "undefined") return "audio/webm";
     const types = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4", "audio/wav"];
@@ -149,6 +155,7 @@ export default function LinguaCoachPage() {
   const handleStartRecording = async () => {
     setRecordingStatus("Initializing microphone...");
     setUserInput("");
+    latestInputRef.current = "";
     setRecordingTime(0);
 
     try {
@@ -176,36 +183,41 @@ export default function LinguaCoachPage() {
         reader.onloadend = async () => {
           const resultStr = reader.result as string;
           const base64Audio = resultStr ? resultStr.split(",")[1] : "";
-          if (!base64Audio) {
-            setRecordingStatus("No audio data captured.");
-            return;
-          }
 
           try {
             setIsProcessing(true);
-            setRecordingStatus("Sending to Sarvam Saaras V3 ASR...");
-            const res = await fetch(`${backendUrl}/api/language-eval/speech-to-text`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ audioBase64: base64Audio, languageCode: nativeLang })
-            });
-            const data = await res.json();
-            if (data.transcript && data.transcript.trim().length > 0) {
-              setUserInput(data.transcript);
-              setRecordingStatus("Sarvam ASR transcribed successfully.");
-              await evaluateAndCoach(data.transcript);
-            } else if (userInput.trim().length > 0) {
-              setRecordingStatus("Using live Web Speech transcript.");
-              await evaluateAndCoach(userInput);
+            setRecordingStatus("Transcribing speech with Sarvam AI...");
+            let sttTranscript = "";
+
+            if (base64Audio && audioBlob.size >= 1000) {
+              const res = await fetch(`/api/language-eval/speech-to-text`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ audioBase64: base64Audio, languageCode: nativeLang })
+              });
+              const data = await res.json();
+              sttTranscript = (data.transcript || data.text || "").trim();
+            }
+
+            const finalTranscript = sttTranscript || latestInputRef.current.trim();
+
+            if (finalTranscript.length > 0) {
+              setUserInput(finalTranscript);
+              latestInputRef.current = finalTranscript;
+              setRecordingStatus("Speech transcribed successfully!");
+              await evaluateAndCoach(finalTranscript);
+            } else {
+              setRecordingStatus("No speech detected. Please speak into microphone and try again.");
             }
           } catch (e) {
             console.error("Sarvam ASR error:", e);
-            if (userInput.trim().length > 0) {
-              await evaluateAndCoach(userInput);
+            const fallback = latestInputRef.current.trim();
+            if (fallback.length > 0) {
+              await evaluateAndCoach(fallback);
             }
           } finally {
             setIsProcessing(false);
-            setTimeout(() => setRecordingStatus(null), 3000);
+            setTimeout(() => setRecordingStatus(null), 4000);
           }
         };
       };
@@ -226,6 +238,7 @@ export default function LinguaCoachPage() {
               }
               if (currentTranscript.trim().length > 0) {
                 setUserInput(currentTranscript);
+                latestInputRef.current = currentTranscript;
               }
             };
             recognition.start();
@@ -452,7 +465,7 @@ export default function LinguaCoachPage() {
                 <textarea
                   rows={5}
                   value={userInput}
-                  onChange={(e) => setUserInput(e.target.value)}
+                  onChange={(e) => handleInputChange(e.target.value)}
                   placeholder="Explain your solution or thought process naturally in your native language (e.g. Hindi, Marathi, Tamil) or English... LinguaCraft will analyze your articulation and provide native mentorship."
                   className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-orange-500 transition-all resize-none font-medium"
                 />

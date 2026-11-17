@@ -8,7 +8,7 @@ class EnhancedResumeService {
 
     this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     this.model = this.genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
       generationConfig: {
         temperature: 0.1,
         maxOutputTokens: 8192,

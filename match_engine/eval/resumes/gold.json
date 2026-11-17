@@ -1,0 +1,127 @@
+{
+ "r01": {
+  "name": "Aarav Sharma",
+  "email": "aarav.sharma@example.com",
+  "title": "Backend Developer",
+  "years_of_experience": 3,
+  "technical_skills": [
+   "JavaScript",
+   "TypeScript",
+   "Node.js",
+   "Express",
+   "PostgreSQL",
+   "Redis",
+   "Docker",
+   "AWS",
+   "Unit Testing",
+   "Git"
+  ]
+ },
+ "r02": {
+  "name": "Priya Nair",
+  "email": "priya.nair@example.org",
+  "title": "ML Engineer",
+  "years_of_experience": 3,
+  "technical_skills": [
+   "Python",
+   "PyTorch",
+   "NLP",
+   "Deep Learning",
+   "FastAPI",
+   "Docker",
+   "SQL"
+  ]
+ },
+ "r03": {
+  "name": "Rohan Mehta",
+  "email": "rohan.m@example.com",
+  "title": "Frontend Engineer",
+  "years_of_experience": 2,
+  "technical_skills": [
+   "React",
+   "Redux",
+   "TypeScript",
+   "HTML",
+   "CSS",
+   "Tailwind CSS",
+   "Next.js",
+   "Figma"
+  ]
+ },
+ "r04": {
+  "name": "Sneha Kulkarni",
+  "email": "sneha.k@example.net",
+  "title": "Data Analyst",
+  "years_of_experience": 0,
+  "technical_skills": [
+   "SQL",
+   "Excel",
+   "Power BI",
+   "Tableau",
+   "Statistics",
+   "Python"
+  ]
+ },
+ "r05": {
+  "name": "Karthik Reddy",
+  "email": "karthik.r@example.com",
+  "title": "DevOps Engineer",
+  "years_of_experience": 4,
+  "technical_skills": [
+   "AWS",
+   "Kubernetes",
+   "Terraform",
+   "Ansible",
+   "Jenkins",
+   "GitHub Actions",
+   "Docker",
+   "Linux",
+   "Bash",
+   "Prometheus",
+   "Grafana"
+  ]
+ },
+ "r06": {
+  "name": "Ananya Iyer",
+  "email": "ananya.iyer@example.com",
+  "title": null,
+  "years_of_experience": 0,
+  "technical_skills": [
+   "Python",
+   "Pandas",
+   "NumPy",
+   "scikit-learn",
+   "SQL",
+   "Statistics",
+   "Machine Learning"
+  ]
+ },
+ "r07": {
+  "name": "Vikram Singh",
+  "email": "vikram.dev@example.com",
+  "title": "Full Stack Developer",
+  "years_of_experience": 1.5,
+  "technical_skills": [
+   "Next.js",
+   "Node.js",
+   "PostgreSQL",
+   "GraphQL",
+   "Docker",
+   "TypeScript"
+  ]
+ },
+ "r08": {
+  "name": "Meera Joshi",
+  "email": "meera.joshi@example.com",
+  "title": "Android Developer",
+  "years_of_experience": 1,
+  "technical_skills": [
+   "Kotlin",
+   "Java",
+   "Flutter",
+   "Dart",
+   "Git",
+   "REST APIs"
+  ]
+ }
+}

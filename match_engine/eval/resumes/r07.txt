@@ -1,0 +1,4 @@
+Vikram Singh | Full Stack Developer | Remote (Jaipur) | vikram.dev@example.com
+1.5 years freelance: Next.js, Node.js, PostgreSQL, GraphQL, Docker, TypeScript.
+Clients: 6 startups; built SaaS dashboards and APIs.
+Education: BCA, 2023

@@ -195,9 +195,10 @@ router.post("/speech-to-text", optionalAuth, async (req, res) => {
 
         const buffer = Buffer.from(audioBase64, 'base64');
         const sttResult = await sarvamService.transcribeAudio(buffer, languageCode);
+        const transcriptText = typeof sttResult === 'string' ? sttResult : (sttResult?.transcript || '');
 
         res.json({
-            transcript: sttResult.transcript || sttResult,
+            transcript: transcriptText,
             language_code: languageCode
         });
     } catch (error) {

@@ -1,0 +1,8 @@
+PRIYA NAIR
+ML Engineer — NLP
+priya.nair@example.org · Chennai
+Work
+Machine Learning Engineer at VoxIndia, 2023–present: fine-tuned transformer models with PyTorch for Tamil speech intent detection; built FastAPI inference services.
+Research Assistant at IIT Madras, 2021–2023: deep learning for low-resource NLP.
+Education: M.Tech, Computer Science, IIT Madras, 2023
+Tech: Python, PyTorch, Hugging Face, NLP, Deep Learning, FastAPI, Docker, SQL

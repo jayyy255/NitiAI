@@ -1,0 +1,6 @@
+Meera Joshi
+Android Developer, 1 year
+meera.joshi@example.com, Bengaluru
+Experience: Android Developer at AppNest (Oct 2024 - Present): Kotlin apps consuming REST APIs, Jetpack Compose.
+Side project: Flutter/Dart expense tracker.
+Skills: Kotlin, Java, Flutter, Dart, Git, REST APIs

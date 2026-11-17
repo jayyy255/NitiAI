@@ -1,0 +1,6 @@
+Karthik Reddy — DevOps Engineer — Hyderabad — karthik.r@example.com
+Summary: 4 years automating infrastructure.
+Experience:
+ * Senior DevOps Engineer, CloudNine (2023-now): Kubernetes on AWS (EKS), Terraform, GitHub Actions.
+ * DevOps Engineer, InfraWorks (2021-2023): Jenkins pipelines, Ansible, Linux administration.
+Skills: AWS, Kubernetes, Terraform, Ansible, Jenkins, GitHub Actions, Docker, Linux, Bash, Prometheus, Grafana

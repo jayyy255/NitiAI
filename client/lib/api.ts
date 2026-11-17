@@ -633,3 +633,68 @@ export async function getDeepAudit(username?: string): Promise<ApiResponse<any>>
 // Export types
 export type { User, RegisterData, LoginData, BasicInfoData, CareerGoalsData, SkillsData };
 
+
+// ==================== MATCH ENGINE / CAREER AGENT ====================
+
+export interface MatchComponents {
+    semantic: number;
+    skill_overlap: number;
+    location: number;
+    preferences: number;
+    experience: number;
+}
+
+export interface MatchExplanation {
+    job_id: string;
+    score: number;
+    headline: string;
+    strengths: { skill: string; profile_quote: string; job_quote: string }[];
+    gaps: string[];
+    concerns: string[];
+    grounded: boolean;
+    generator: "llm" | "template";
+    dropped_claims: number;
+}
+
+export async function explainMatch(jobId: string): Promise<ApiResponse<{ match: { score: number; components: MatchComponents }; explanation: MatchExplanation }>> {
+    return apiRequest("/api/match/explain", { method: "POST", body: JSON.stringify({ job_id: jobId }) });
+}
+
+export async function agentChat(message: string): Promise<ApiResponse<{ response: string; tool_calls: { tool: string; args: Record<string, unknown>; ok: boolean }[] }>> {
+    return apiRequest("/api/agent/chat", { method: "POST", body: JSON.stringify({ message }) });
+}
+
+export async function getAgentMemory(): Promise<ApiResponse<{ memory: { kind: string; key: string; value: string }[] }>> {
+    return apiRequest("/api/agent/memory");
+}
+
+export async function forgetAgentMemory(kind: string, key: string): Promise<ApiResponse<{ deleted: number }>> {
+    return apiRequest("/api/agent/memory", { method: "DELETE", body: JSON.stringify({ kind, key }) });
+}
+
+export async function getMarketTrends(days = 30): Promise<ApiResponse<unknown>> {
+    return apiRequest(`/api/market/trends?days=${days}`);
+}
+
+export interface MetricsSummary {
+    window_hours: number;
+    routes: { route: string; method: string; n: number; p50: number; p95: number; p99: number; errors: number }[];
+    hourly: { hour: string; n: number; p95: number }[];
+    jobs: { active: number; total: number; pending_embed: number };
+    last_ingest: { started_at: string; finished_at: string | null; fetched: number; inserted: number; updated: number; expired: number; embedded: number; errors: unknown[] } | null;
+    events: Record<string, number>;
+    eval: { run_at: string; retrieval: Record<string, { "recall@20": number; "ndcg@10": number; p50_ms: number }> } | null;
+    health: { db: boolean; llm: boolean; embedding_model: string; reranker: string; weights: Record<string, number> } | null;
+}
+
+export async function getMetricsSummary(hours = 24): Promise<ApiResponse<MetricsSummary>> {
+    return apiRequest(`/api/metrics/summary?hours=${hours}`);
+}
+
+export async function triggerIngestion(): Promise<ApiResponse<{ started: boolean }>> {
+    return apiRequest("/api/metrics/ingest", { method: "POST" });
+}
+
+export async function trainRankingWeights(): Promise<ApiResponse<Record<string, unknown>>> {
+    return apiRequest("/api/metrics/train-ltr", { method: "POST" });
+}

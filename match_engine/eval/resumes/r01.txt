@@ -1,0 +1,13 @@
+Aarav Sharma
+aarav.sharma@example.com | +91 98765 43210 | Bengaluru, India
+Backend Developer
+EXPERIENCE
+Software Engineer, PayLite Technologies (Jul 2022 - Present)
+- Built REST APIs in Node.js and Express serving 2M requests/day; PostgreSQL and Redis.
+- Containerised services with Docker and deployed to AWS ECS.
+Intern, CodeCraft (Jan 2022 - Jun 2022)
+- Wrote unit tests with Jest.
+EDUCATION
+B.E. Computer Engineering, Pune University, 2022
+SKILLS
+JavaScript, TypeScript, Node.js, Express, PostgreSQL, Redis, Docker, AWS, Jest, Git

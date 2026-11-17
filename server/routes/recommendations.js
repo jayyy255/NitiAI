@@ -2,126 +2,67 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../config/dbConfig");
 const { authenticateToken } = require("../middleware/auth");
+const engine = require("../services/matchEngine");
+const { scoreJob } = require("../services/matchScorer");
+const { loadMatchProfile } = require("../services/profileLoader");
+const roleCatalog = require("../services/roleCatalog");
 
 /**
  * @route GET /api/recommendations/career
- * @desc Get career recommendations based on user profile
+ * @desc Career paths ranked by an explainable fit score (skill coverage, experience, preferences)
+ *       plus live market demand from stored postings when the match engine is available.
  * @access Private
  */
 router.get("/career", authenticateToken, async (req, res) => {
     const userId = req.user.id;
-
     try {
-        // 1. Fetch user profile data
-        const userResult = await pool.query(
-            "SELECT proficiency_level, career_goal_short, preferred_work_mode FROM users WHERE id = $1",
-            [userId]
-        );
-        const user = userResult.rows[0];
+        const profile = await loadMatchProfile(userId);
+        const market = await engine.marketTrends(30).catch(() => null);
+        const demandByRole = new Map((market?.roles || []).map((r) => [r.role.toLowerCase(), r]));
 
-        // 2. Fetch skills
-        const skillsResult = await pool.query(
-            "SELECT skill_name, proficiency FROM skills WHERE user_id = $1",
-            [userId]
-        );
-        const skills = skillsResult.rows;
-
-        // 3. Fetch experience count
-        const expResult = await pool.query(
-            "SELECT COUNT(*) as exp_count FROM experience WHERE user_id = $1",
-            [userId]
-        );
-        const expCount = parseInt(expResult.rows[0].exp_count);
-
-        // 4. Fetch preferences
-        const prefResult = await pool.query(
-            "SELECT preferred_roles, industry_preferences FROM preferences WHERE user_id = $1",
-            [userId]
-        );
-        const preferences = prefResult.rows[0] || { preferred_roles: [], industry_preferences: [] };
-
-        /**
-         * Career Recommendation Logic (Mocked for this stage)
-         * Requirements:
-         * - Use user profile data, skills, experience count, preferences
-         * - Work even if resume was never uploaded
-         * - Work even if extended profile is empty
-         */
-
-        const recommendations = [];
-
-        // Heuristic 1: Based on Career Goal
-        if (user && user.career_goal_short) {
-            recommendations.push({
-                title: `Senior ${user.career_goal_short}`,
-                reason: `Aligns with your stated goal of becoming a ${user.career_goal_short}`,
-                match_score: 95
-            });
+        // candidate roles: the catalogue plus anything the user said they want
+        const candidates = [...roleCatalog];
+        for (const role of profile.preferred_roles) {
+            const known = candidates.some((c) => c.title.toLowerCase() === String(role).toLowerCase());
+            if (!known && role) candidates.push({ title: role, min_years: null, skills: [], user_defined: true });
         }
 
-        // Heuristic 2: Based on Skills
-        if (skills && skills.length > 0) {
-            const topSkills = skills.sort((a, b) => b.proficiency - a.proficiency).slice(0, 2);
-            topSkills.forEach(skill => {
-                recommendations.push({
-                    title: `${skill.skill_name} Specialist`,
-                    reason: `Leverages your proficiency in ${skill.skill_name}`,
-                    match_score: 85
-                });
-            });
-        }
-
-        // Heuristic 3: Based on Preferences
-        if (preferences.preferred_roles && preferences.preferred_roles.length > 0) {
-            preferences.preferred_roles.forEach(role => {
-                recommendations.push({
-                    title: role,
-                    reason: "Matches one of your preferred roles",
-                    match_score: 90
-                });
-            });
-        }
-
-        // Heuristic 4: Based on Experience Count
-        if (expCount > 5) {
-            recommendations.push({
-                title: "Technical Lead / Manager",
-                reason: "Your extensive experience makes you a candidate for leadership roles",
-                match_score: 80
-            });
-        } else if (expCount > 0 && expCount <= 2) {
-            recommendations.push({
-                title: "Junior Developer / Associate",
-                reason: "Great starting point for your early career stage",
-                match_score: 80
-            });
-        }
-
-        // Fallback if no data is available
-        if (recommendations.length === 0) {
-            recommendations.push({
-                title: "Software Engineer (General)",
-                reason: "A versatile starting point for most technical careers",
-                match_score: 60
-            });
-            recommendations.push({
-                title: "Product Coordinator",
-                reason: "Good entry-level role for career exploration",
-                match_score: 55
-            });
-        }
-
-        // Remove duplicates and limit results
-        const uniqueRecommendations = Array.from(new Set(recommendations.map(r => r.title)))
-            .map(title => recommendations.find(r => r.title === title))
-            .sort((a, b) => b.match_score - a.match_score)
-            .slice(0, 5);
-
-        res.json({
-            user_id: userId,
-            recommendations: uniqueRecommendations
+        const recommendations = candidates.map((role) => {
+            // user-defined roles have no skill list; borrow the closest catalogue entry's skills
+            let skills = role.skills;
+            if (!skills.length) {
+                const words = String(role.title).toLowerCase().split(/\W+/);
+                const near = roleCatalog.find((c) => words.some((w) => w.length > 3 && c.title.toLowerCase().includes(w)));
+                skills = near ? near.skills : [];
+            }
+            const m = scoreJob(profile, { title: role.title, skills, min_years: role.min_years, description: "", location: "Remote" });
+            // location is not meaningful for a career path; re-weight without it
+            const w = { ...m.weights, location: 0 };
+            const totalW = Object.values(w).reduce((a, b) => a + b, 0);
+            const score = Math.round((100 * Object.entries(w).reduce((acc, [k, v]) => acc + v * m.components[k], 0)) / totalW);
+            const demand = [...demandByRole.entries()].find(([k]) => k.includes(role.title.toLowerCase().split(" ")[0]))?.[1];
+            const reasonParts = [];
+            if (m.matched_skills.length) reasonParts.push(`You already have ${m.matched_skills.slice(0, 4).join(", ")}`);
+            if (m.missing_skills.length) reasonParts.push(`learn ${m.missing_skills.slice(0, 3).join(", ")} to close the gap`);
+            if (role.user_defined) reasonParts.push("one of your preferred roles");
+            return {
+                title: role.title,
+                match_score: score,
+                reason: reasonParts.join("; ") || "Add skills to your profile for a more precise match",
+                matched_skills: m.matched_skills,
+                missing_skills: m.missing_skills,
+                components: { ...m.components, location: undefined },
+                market_demand: demand ? { postings_30d: demand.postings, share: demand.share, median_salary: demand.median_salary } : null,
+            };
         });
 
+        recommendations.sort((a, b) => b.match_score - a.match_score);
+        res.json({
+            user_id: userId,
+            recommendations: recommendations.slice(0, 5),
+            scoring: "skill coverage 35% + similarity 35% + preferences 10% + experience 10% (location excluded), see match_engine/app/scoring.py",
+            market_source: market ? market.source : null,
+        });
     } catch (err) {
         console.error("Recommendations error:", err);
         res.status(500).json({ error: "Failed to generate career recommendations" });
@@ -405,8 +346,29 @@ function calculateProfileCompleteness(user, skills, education, experience, prefe
  */
 router.get("/trending", authenticateToken, async (req, res) => {
     try {
-        // For a lighter response, return cached/static trending data
-        // In production, this could be fetched from an external job market API
+        // Live: aggregate stored RapidAPI + Adzuna postings (match engine). Falls back to a static snapshot.
+        const market = await engine.marketTrends(30).catch(() => null);
+        if (market && market.total_postings > 0) {
+            const rising = new Map((market.rising_skills || []).map((r) => [r.skill, r.growth_pct]));
+            return res.json({
+                trending_roles_2026: market.roles.filter((r) => r.postings > 0).slice(0, 5).map((r) => ({
+                    title: r.role,
+                    demand_level: r.share >= 0.15 ? "Very High" : r.share >= 0.08 ? "High" : "Moderate",
+                    why_trending: `${r.postings} postings in the last 30 days (${Math.round(r.share * 100)}% of stored jobs)`,
+                    postings_30d: r.postings,
+                    share_of_postings: r.share,
+                    remote_share: r.remote_share,
+                    median_salary: r.median_salary,
+                })),
+                top_skills: market.top_skills.slice(0, 10).map((s) => ({ ...s, growth_pct: rising.get(s.skill) ?? null })),
+                rising_skills: market.rising_skills,
+                top_locations: market.top_locations,
+                total_postings: market.total_postings,
+                last_updated: new Date().toISOString(),
+                source: market.source,
+            });
+        }
+
         const trendingData = {
             trending_roles_2026: [
                 {
@@ -463,7 +425,7 @@ router.get("/trending", authenticateToken, async (req, res) => {
                 }
             ],
             last_updated: new Date().toISOString(),
-            source: "Market Analysis 2025-2026"
+            source: "static snapshot (match engine unavailable or no stored jobs yet)"
         };
 
         res.json(trendingData);

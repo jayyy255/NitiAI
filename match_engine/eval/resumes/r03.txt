@@ -1,0 +1,8 @@
+Rohan Mehta | rohan.m@example.com | Mumbai
+Frontend Engineer with 2 years building React apps.
+Skills: React, Redux, TypeScript, HTML5, CSS3, Tailwind, Next.js, Figma
+Experience
+Frontend Developer — PixelWorks Agency — 2023 to 2025
+Built responsive dashboards in React + TypeScript; migrated styling to Tailwind CSS.
+Education
+B.Sc. IT, Mumbai University (2022)

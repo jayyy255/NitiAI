@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../config/dbConfig");
 const { authenticateToken, optionalAuth } = require("../middleware/auth");
+const matchEngine = require("../services/matchEngine");
 const multer = require("multer");
 const pdf = require("pdf-parse");
 const resumeService = require("./resumeParser");
@@ -815,6 +816,13 @@ router.post("/chat-insights", authenticateToken, async (req, res) => {
 
         if (!query) {
             return res.status(400).json({ error: "Query is required" });
+        }
+
+        // Prefer the tool-using career agent (live jobs, skill gaps, saved jobs, persistent memory).
+        // Fall back to the single-shot Gemini chat below if the match engine is unavailable.
+        const agentReply = await matchEngine.agentChat({ user_id: req.user.id, message: String(query).slice(0, 4000) }).catch(() => null);
+        if (agentReply && agentReply.response) {
+            return res.json({ response: agentReply.response, tool_calls: agentReply.tool_calls, engine: "agent" });
         }
 
         // 1. Fetch User Context

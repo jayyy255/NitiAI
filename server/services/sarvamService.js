@@ -25,12 +25,29 @@ class SarvamService {
    * Feature 1, 2: Speech-to-Text (Saaras V3)
    */
   async transcribeAudio(fileBuffer, languageCode = 'hi-IN') {
-    if (!this.isConfigured() || !fileBuffer) {
-      return { transcript: 'Aapka candidate explanation clear hai.', language: languageCode };
+    if (!this.isConfigured() || !fileBuffer || fileBuffer.length < 1000) {
+      if (fileBuffer && fileBuffer.length < 1000) {
+        console.warn(`[Sarvam STT Notice]: Audio buffer size (${fileBuffer.length} bytes) is too small to contain valid audio samples.`);
+      }
+      return { transcript: '', language: languageCode };
     }
     try {
+      let filename = 'audio.wav';
+      let contentType = 'audio/wav';
+
+      if (fileBuffer.length >= 4) {
+        const magic = fileBuffer.toString('hex', 0, 4);
+        if (magic === '1a45dfa3') {
+          filename = 'audio.webm';
+          contentType = 'audio/webm';
+        } else if (magic === '4f676753') {
+          filename = 'audio.ogg';
+          contentType = 'audio/ogg';
+        }
+      }
+
       const formData = new FormData();
-      formData.append('file', fileBuffer, { filename: 'audio.webm', contentType: 'audio/webm' });
+      formData.append('file', fileBuffer, { filename, contentType });
       formData.append('model', 'saaras:v3');
       formData.append('language_code', languageCode);
 
@@ -39,8 +56,8 @@ class SarvamService {
       });
       return response.data;
     } catch (error) {
-      console.warn('Saaras V3 STT failed, using fallback:', error.message);
-      return { transcript: 'Sample audio transcription in Indic code-mixed language.', language: languageCode };
+      console.warn('[Sarvam Saaras V3 STT Error]:', error.response ? error.response.data : error.message);
+      return { transcript: '', language: languageCode };
     }
   }
 

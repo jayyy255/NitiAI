@@ -372,7 +372,7 @@ function generateSuggestions(breakdown, skills, education, experience, preferenc
 }
 
 // Update user profile
-router.put("/me", authenticateToken, async (req, res) => {
+async function updateProfile(req, res) {
   try {
     const {
       username,
@@ -385,7 +385,8 @@ router.put("/me", authenticateToken, async (req, res) => {
       preferred_work_mode,
       availability_timeline,
       career_goal_short,
-      career_goal_long
+      career_goal_long,
+      native_language
     } = req.body;
 
     // If email is being changed, check if it already exists
@@ -415,9 +416,10 @@ router.put("/me", authenticateToken, async (req, res) => {
         availability_timeline = COALESCE($9, availability_timeline),
         career_goal_short = COALESCE($10, career_goal_short),
         career_goal_long = COALESCE($11, career_goal_long),
+        native_language = COALESCE($13, native_language),
         updated_at = now()
       WHERE id = $12 
-      RETURNING id, username, name, email, phone, location, age, proficiency_level, preferred_work_mode, availability_timeline, career_goal_short, career_goal_long`,
+      RETURNING id, username, name, email, phone, location, age, proficiency_level, preferred_work_mode, availability_timeline, career_goal_short, career_goal_long, native_language`,
       [
         username,
         name,
@@ -430,7 +432,8 @@ router.put("/me", authenticateToken, async (req, res) => {
         availability_timeline,
         career_goal_short,
         career_goal_long,
-        req.user.id
+        req.user.id,
+        sanitize(native_language)
       ]
     );
 
@@ -442,6 +445,10 @@ router.put("/me", authenticateToken, async (req, res) => {
     console.error("Update profile error:", err);
     res.status(500).json({ error: "An error occurred while updating profile" });
   }
-});
+}
+
+router.put("/me", authenticateToken, updateProfile);
+// Alias used by the language switcher (client/lib/language-context.tsx)
+router.put("/profile", authenticateToken, updateProfile);
 
 module.exports = router;

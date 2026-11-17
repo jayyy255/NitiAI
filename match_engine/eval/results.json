@@ -1,0 +1,44 @@
+{
+  "run_at": "2026-11-17 07:06 UTC",
+  "dataset": {
+    "jobs": 72,
+    "profiles": 10,
+    "labels": 105
+  },
+  "config": {
+    "embedder": "BAAI/bge-small-en-v1.5",
+    "reranker": "Xenova/ms-marco-MiniLM-L-6-v2"
+  },
+  "retrieval": {
+    "bm25": {
+      "recall@20": 1.0,
+      "ndcg@10": 0.9251,
+      "p50_ms": 398.1,
+      "queries": 10
+    },
+    "vector": {
+      "recall@20": 0.98,
+      "ndcg@10": 0.8841,
+      "p50_ms": 464.8,
+      "queries": 10
+    },
+    "hybrid": {
+      "recall@20": 0.98,
+      "ndcg@10": 0.929,
+      "p50_ms": 451.1,
+      "queries": 10
+    },
+    "hybrid_rerank": {
+      "recall@20": 1.0,
+      "ndcg@10": 0.8893,
+      "p50_ms": 1025.2,
+      "queries": 10
+    }
+  },
+  "groundedness": {
+    "explanations": 30,
+    "generator": "template",
+    "evidence_verified": 1.0,
+    "claims_dropped_by_verifier": 0
+  }
+}
