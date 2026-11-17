@@ -24,3 +24,22 @@ services:
     restart: unless-stopped
     env_file:
       - ./server/.env
+    environment:
+      MATCH_ENGINE_URL: http://match-engine:8000
+    depends_on:
+      - match-engine
+
+  match-engine:
+    build:
+      context: ./match_engine
+      dockerfile: Dockerfile
+    container_name: nitiai-match-engine
+    ports:
+      - "8331:8000"
+    restart: unless-stopped
+    # reads DATABASE_URL, MATCH_ENGINE_TOKEN, GEMINI/RAPIDAPI/ADZUNA keys from the server env
+    env_file:
+      - ./server/.env
+    environment:
+      INGEST_ENABLED: "true"
+      PORT: "8000"

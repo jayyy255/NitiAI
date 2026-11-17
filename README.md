@@ -69,6 +69,14 @@ Env (reads `match_engine/.env`, then `server/.env`): `DATABASE_URL`, `MATCH_ENGI
 `GEMINI_API_KEY`, `RAPIDAPI_KEY`, `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `INGEST_ENABLED=true`, `INGEST_INTERVAL_HOURS`.
 Express needs `MATCH_ENGINE_URL` (default `http://localhost:8000`) and `MATCH_ENGINE_TOKEN`. The database needs the `vector` extension (Neon supports it); the engine runs its migration on start.
 
+With Docker: `docker compose up --build` starts the client, server and match engine (port 8331; models baked into the image, ingestion enabled).
+The engine reads `server/.env`; `server/docker-compose.yaml` now uses a pgvector Postgres image.
+
+### CI
+`.github/workflows/match-engine.yml` runs on changes to `match_engine/` or `server/`: unit/API tests, Postgres + pgvector integration tests,
+the retrieval eval (fails if hybrid + rerank NDCG@10 drops below 0.80; results uploaded and shown in the job summary), a Docker build,
+and the server's Node tests.
+
 ### Evaluation
 `python -m eval.run_eval [--resume] [--judge] [--update-readme]` — Recall@20 / NDCG@10 for BM25 vs vector vs hybrid vs hybrid + rerank,
 resume-parser field accuracy (runs the real Gemini parser via `server/scripts/eval_resume_parser.js`), and explanation groundedness
