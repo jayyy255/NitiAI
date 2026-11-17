@@ -77,6 +77,28 @@ The engine reads `server/.env`; `server/docker-compose.yaml` now uses a pgvector
 the retrieval eval (fails if hybrid + rerank NDCG@10 drops below 0.80; results uploaded and shown in the job summary), a Docker build,
 and the server's Node tests.
 
+### Code execution (Piston)
+Coding practice and the interview coding round run code on a self-hosted [Piston](https://github.com/engineer-man/piston)
+server. Both backends grade on the server (`server/services/codeGrader.js`, copied to `MOCK_INTERVIEW/backend/services/`):
+Python/JavaScript solutions are called once per test case and their return values compared with the expected output;
+C++ submissions need an `int main()` that reads the test input from stdin. If Piston is unreachable the result is an
+AI estimate, labelled `engine: "ai-estimate"`, never a fabricated pass.
+
+```bash
+docker run -d --name piston --privileged -p 127.0.0.1:2000:2000 -v piston_packages:/piston/packages ghcr.io/engineer-man/piston
+curl -X POST localhost:2000/api/v2/packages -H "Content-Type: application/json" -d '{"language":"python","version":"3.10.0"}'
+# repeat for {"language":"node","version":"18.15.0"} and {"language":"gcc","version":"10.2.0"}
+```
+Set `EXECUTION_API_URL=http://localhost:2000/api/v2/execute` in `server/.env` and `MOCK_INTERVIEW/backend/.env`.
+Current Piston needs cgroup v2; on Docker Desktop with cgroup v1, build the API from commit `59338ee` (the last one
+before the isolate sandbox) instead. Never expose port 2000 publicly.
+
+### Mock job data (no RapidAPI / Adzuna keys)
+`python -m app.seed_jobs` (inside `match_engine/`, or `docker exec <engine> python -m app.seed_jobs`) loads ~600 fictional
+postings across 100+ companies, Indian cities and 16 role families, with synthetic salaries and requirements, through the
+normal dedup/skills/embedding pipeline. Rows have `source = 'seed'`; `--purge` removes them, `--count`/`--seed` vary the set.
+Re-run it periodically or seeded jobs are expired as stale after `STALE_AFTER_DAYS` (21).
+
 ### Evaluation
 `python -m eval.run_eval [--resume] [--judge] [--update-readme]` — Recall@20 / NDCG@10 for BM25 vs vector vs hybrid vs hybrid + rerank,
 resume-parser field accuracy (runs the real Gemini parser via `server/scripts/eval_resume_parser.js`), and explanation groundedness
@@ -114,7 +136,7 @@ cd server && npm test                              # JS fallback scorer + RapidA
 ### Fixes to existing features
 - `/api/peer-meetings` and `/api/voice-resume` routes existed but were never mounted (client calls 404'd) — now mounted.
 - Language switcher called `PUT /api/users/profile`, which did not exist; added it and `native_language` saving.
-- Roadmap generation used the retired `gemini-pro` model; now `gemini-2.5-flash` (override with `GEMINI_MODEL`).
+- Roadmap generation used the retired `gemini-pro` model; now `gemini-flash-latest`, an alias that tracks the current Flash model (override with `GEMINI_MODEL`).
 - Removed a hardcoded RapidAPI key from `routes/jobs.js` and an unauthenticated `/debug/test-match` endpoint.
 - "Market trends (Adzuna)" was listed as done but no Adzuna code existed; it is now real via the ingestion pipeline.
 

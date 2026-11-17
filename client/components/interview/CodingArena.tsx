@@ -62,11 +62,15 @@ const CodingArena = ({ problems = [], initialIsDarkMode = false, onFinishCoding 
         if (result.results && result.results.length > 0) {
             consoleLogs += result.results.map((res: any, i: number) => {
             let log = `> Test Case ${i + 1}: ${res.passed ? '✅ PASS' : '❌ FAIL'}\n  Input: ${res.input}\n  Expected: ${res.expected}\n  Output: ${res.actual}`;
+            if (res.error) {
+                log += `\n  Error: ${res.error}`;
+            }
             if (res.stdout) {
                 log += `\n  Stdout: ${res.stdout}`;
             }
             return log;
             }).join('\n\n');
+            if (result.error) consoleLogs = `[Error] ${result.error}\n\n` + consoleLogs;
         } else {
             consoleLogs += result.success ? "All tests passed!" : (result.error || "Execution failed.");
         }

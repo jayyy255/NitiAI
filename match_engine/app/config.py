@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     model_cache_dir: str = ".cache/models"
 
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-flash-latest"
 
     rapidapi_key: str = ""
     rapidapi_host: str = "linkedin-job-search-api.p.rapidapi.com"

@@ -91,148 +91,51 @@ export async function generateCodingQuestions(
 
 
 
-const generateDriverCode = (code: string, language: string, testCases: any[]) => {
-    // Robust parser that respects arrays, objects, and quotes
-    const parseInput = (inputStr: string) => {
-        const args: string[] = [];
-        let current = '';
-        let depth = 0;
-        let inQuotes = false;
-        let quoteChar = '';
+export interface TestResult {
+    passed: boolean;
+    input: string;
+    expected: string;
+    actual: string;
+    stdout?: string;
+    error?: string;
+}
 
-        for (let i = 0; i < inputStr.length; i++) {
-            const char = inputStr[i];
+export interface ExecutionResult {
+    success: boolean;
+    results: TestResult[];
+    compilerOutput: string;
+    error?: string;
+    engine?: "piston" | "ai-estimate" | "unavailable";
+}
 
-            // Handle quotes
-            if ((char === '"' || char === "'") && (i === 0 || inputStr[i - 1] !== '\\')) {
-                if (!inQuotes) {
-                    inQuotes = true;
-                    quoteChar = char;
-                } else if (char === quoteChar) {
-                    inQuotes = false;
-                }
-                current += char;
-                continue;
-            }
-
-            // Track bracket depth
-            if (!inQuotes) {
-                if (char === '[' || char === '{' || char === '(') depth++;
-                if (char === ']' || char === '}' || char === ')') depth--;
-
-                // Split on comma only at depth 0
-                if (char === ',' && depth === 0) {
-                    args.push(current.trim());
-                    current = '';
-                    continue;
-                }
-            }
-            current += char;
-        }
-
-        if (current.trim()) {
-            args.push(current.trim());
-        }
-
-        // Process each argument
-        return args.map(arg => {
-            const value = arg.trim();
-            // If already quoted, array, object, number, or boolean, return as-is
-            if (value.startsWith('"') || value.startsWith("'") ||
-                value.startsWith('[') || value.startsWith('{') ||
-                !isNaN(Number(value)) || value === 'true' || value === 'false') {
-                return value;
-            }
-            // Otherwise wrap in quotes (plain string)
-            return `"${value}"`;
-        }).join(', ');
-    };
-
-    if (language === 'javascript') {
-        let driver = code + "\n\n// Driver Code\n";
-        testCases.forEach((tc) => {
-            driver += `try { console.log("---TEST-CASE-START---"); const res = solution(${parseInput(tc.input)}); console.log("---RVAL---"); console.log(JSON.stringify(res)); } catch(e) { console.log(e.message); }\n`;
-        });
-        return driver;
-    } else if (language === 'python') {
-        let driver = code + "\n\n# Driver Code\nimport json\n";
-        testCases.forEach((tc) => {
-            driver += `print("---TEST-CASE-START---")\ntry:\n    res = solution(${parseInput(tc.input)})\n    print("---RVAL---")\n    print(json.dumps(res))\nexcept Exception as e:\n    print(str(e))\n`;
-        });
-        return driver;
-    } else if (language === 'cpp') {
-        return code;
-    }
-    return code;
-};
-
-export async function executeCode(code: string, language: string, testCases: any[]) {
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555';
-
-    // 1. Generate Driver Code
-    const fullCode = generateDriverCode(code, language, testCases);
-
+// Runs the candidate's code on the server (/api/execute), which executes it on Piston against
+// every test case and compares actual vs expected output.
+export async function executeCode(code: string, language: string, testCases: any[]): Promise<ExecutionResult> {
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5555";
     try {
-        const response = await fetch(`${API_URL}`, {
+        const response = await fetch(`${API_URL}/api/execute`, {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                code: fullCode,
-                language,
-                testCases // Backend doesn't use this for Piston, but good for logs
-            }),
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code, language, testCases }),
         });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || "Execution failed");
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok && !data.results) {
+            throw new Error(data.error || `Execution failed (${response.status})`);
         }
-
-        const data = await response.json();
-
-        // 2. Parse Results
-        const rawOutput = data.output || "";
-
-        // If there's an error signal or stderr (handled by backend returning 'output' usually, but check)
-
-        const parts = rawOutput.split("---TEST-CASE-START---");
-        const globalStdout = parts[0].trim();
-
-        const results = testCases.map((tc, index) => {
-            const caseOutputRaw = parts[index + 1] || "";
-            const [caseStdoutRaw, caseRvalRaw] = caseOutputRaw.split("---RVAL---");
-
-            const caseStdout = caseStdoutRaw ? caseStdoutRaw.trim() : "";
-            let actual = caseRvalRaw ? caseRvalRaw.trim() : "undefined";
-
-            // Normalize expected/actual
-            const passed = actual.replace(/\s/g, '') === tc.output.toString().replace(/\s/g, '');
-
-            return {
-                input: tc.input,
-                expected: tc.output,
-                actual: actual,
-                stdout: caseStdout,
-                passed: passed
-            };
-        });
-
-        const allPassed = results.length > 0 && results.every((r: any) => r.passed);
-
         return {
-            success: allPassed,
-            results: results,
-            compilerOutput: globalStdout
+            success: data.success === true,
+            results: Array.isArray(data.results) ? data.results : [],
+            compilerOutput: [data.engine === "ai-estimate" ? data.output : "", data.compilerOutput || ""].filter(Boolean).join("\n"),
+            error: data.error,
+            engine: data.engine,
         };
-
     } catch (error: any) {
         console.error("Evaluation Error:", error);
         return {
             success: false,
             results: [],
-            compilerOutput: `Error executing code: ${error.message}`
+            compilerOutput: "",
+            error: `Error executing code: ${error.message}`,
         };
     }
 }

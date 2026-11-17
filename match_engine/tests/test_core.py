@@ -133,3 +133,13 @@ def test_ltr_learns_signal():
 
 def test_ltr_needs_data():
     assert not train_from_rows([])["trained"]
+
+
+def test_seed_generator_is_deterministic_and_varied():
+    from app.seed_jobs import generate
+
+    a, b = generate(200, seed=3), generate(200, seed=3)
+    assert [j.title for j in a] == [j.title for j in b]
+    assert len(a) == 200 and len({j.company for j in a}) > 50
+    assert len({(j.company, j.title, j.location) for j in a}) == 200
+    assert all(j.source == "seed" and "Must have:" in j.description for j in a)

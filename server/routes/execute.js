@@ -1,66 +1,15 @@
 const express = require("express");
 const router = express.Router();
-const axios = require("axios");
+const { gradeSubmission } = require("../services/codeGrader");
 
-// Piston API Configuration
-const EXECUTION_API_URL = process.env.EXECUTION_API_URL || "http://98.94.81.73/api/v2/execute";
+const EXECUTION_API_URL = process.env.EXECUTION_API_URL || "http://localhost:2000/api/v2/execute";
 
-// Language Alias map for Piston
-const LANGUAGE_MAP = {
-    javascript: { language: "javascript", version: "18.15.0" },
-    python: { language: "python", version: "3.10.0" },
-    cpp: { language: "c++", version: "10.2.0" }
-};
-
-router.post("/", async (req, res) => {
-    const { code, language, testCases, problemTitle } = req.body;
-
-    if (!code || !language) {
-        return res.status(400).json({ error: "Code and language are required" });
-    }
-
-    const langConfig = LANGUAGE_MAP[language] || { language, version: "0.0.0" };
-
-    try {
-        const submissionData = {
-            language: langConfig.language,
-            version: langConfig.version,
-            files: [{ content: code }],
-            stdin: "",
-            args: [],
-            compile_timeout: 10000,
-            run_timeout: 3000,
-        };
-
-        const response = await axios.post(EXECUTION_API_URL, submissionData, {
-            headers: { "Content-Type": "application/json" },
-            timeout: 5000
-        });
-
-        const result = response.data;
-        if (result && result.run) {
-            return res.json({
-                output: result.run.output,
-                code: result.run.code,
-                signal: result.run.signal,
-                results: (testCases || []).map(tc => ({
-                    passed: !result.run.stderr && result.run.code === 0,
-                    input: tc.input,
-                    expected: tc.output,
-                    actual: result.run.output ? result.run.output.trim() : tc.output,
-                    stdout: result.run.output || ""
-                }))
-            });
-        }
-    } catch (error) {
-        console.warn("Piston API execution error, switching to Sarvam AI code runner:", error.message);
-    }
-
-    // ── Sarvam AI LLM Code Execution Fallback ─────────────────────────────────
-    try {
-        const sarvamService = require("../services/sarvamService");
-        const prompt = `You are a code execution engine.
-Evaluate the following ${language} code for problem "${problemTitle || 'Coding Challenge'}".
+// Last resort when the Piston execution service is unreachable: ask the LLM to *estimate* results.
+// Always labelled engine: "ai-estimate" so the UI can say the code was not actually run.
+async function aiEstimate({ code, language, testCases, problemTitle }) {
+    const sarvamService = require("../services/sarvamService");
+    const prompt = `You are reviewing ${language} code for the problem "${problemTitle || "Coding Challenge"}".
+Mentally trace the code for each test case and predict its return value.
 
 USER CODE:
 \`\`\`${language}
@@ -70,46 +19,50 @@ ${code}
 TEST CASES:
 ${JSON.stringify(testCases || [], null, 2)}
 
-INSTRUCTION:
-Evaluate if the code correctly solves each test case.
-Return ONLY valid JSON matching this exact structure:
-{
-  "output": "Code executed successfully.",
-  "results": [
-    {
-      "passed": true,
-      "input": "input string",
-      "expected": "expected output",
-      "actual": "actual output",
-      "stdout": ""
+Return ONLY JSON: {"results":[{"input":"...","expected":"...","actual":"<predicted output>","passed":true|false}]}`;
+    const raw = await sarvamService.generateCompletion(prompt, { temperature: 0.1 });
+    let json = raw.replace(/```json\n?|\n?```/g, "").trim();
+    json = json.substring(json.indexOf("{"), json.lastIndexOf("}") + 1);
+    const parsed = JSON.parse(json);
+    const results = (parsed.results || []).map((r, i) => ({
+        passed: r.passed === true,
+        input: r.input ?? testCases[i]?.input,
+        expected: r.expected ?? testCases[i]?.output,
+        actual: String(r.actual ?? ""),
+        stdout: "",
+    }));
+    return {
+        success: results.length > 0 && results.every((r) => r.passed),
+        engine: "ai-estimate",
+        results,
+        output: "Code execution service unavailable: these results are an AI estimate, not a real run.",
+        compilerOutput: "",
+    };
+}
+
+// POST /api/execute { code, language: python|javascript|cpp, testCases?: [{input, output}], problemTitle? }
+router.post("/", async (req, res) => {
+    const { code, language, testCases, problemTitle } = req.body || {};
+    if (!code || !language) {
+        return res.status(400).json({ error: "Code and language are required" });
     }
-  ]
-}`;
 
-        const llmResponse = await sarvamService.generateCompletion(prompt, { temperature: 0.1 });
-        let cleanJson = llmResponse.replace(/```json\n?|\n?```/g, '').trim();
-        const firstBrace = cleanJson.indexOf('{');
-        const lastBrace = cleanJson.lastIndexOf('}');
-        if (firstBrace !== -1 && lastBrace !== -1) {
-            cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
-        }
+    try {
+        const result = await gradeSubmission({ code, language, testCases, executionUrl: EXECUTION_API_URL });
+        return res.json(result);
+    } catch (err) {
+        console.warn("Code execution service unreachable:", err.message);
+    }
 
-        const parsed = JSON.parse(cleanJson);
-        return res.json(parsed);
+    try {
+        return res.json(await aiEstimate({ code, language, testCases: testCases || [], problemTitle }));
     } catch (llmErr) {
-        console.error("Sarvam AI Code Evaluation Fallback Error:", llmErr.message);
-
-        const results = (testCases || []).map(tc => ({
-            passed: true,
-            input: tc.input,
-            expected: tc.output,
-            actual: tc.output,
-            stdout: "Code executed successfully."
-        }));
-
-        return res.json({
-            output: "Code executed successfully.",
-            results
+        console.error("AI estimate fallback failed:", llmErr.message);
+        return res.status(503).json({
+            success: false,
+            engine: "unavailable",
+            error: "Code execution service is unavailable. Please try again later.",
+            results: (testCases || []).map((tc) => ({ passed: false, input: tc.input, expected: tc.output, actual: "", stdout: "", error: "Not run" })),
         });
     }
 });

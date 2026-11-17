@@ -119,57 +119,14 @@ app.post('/api/evaluate/detailed', async (req, res) => {
 });
 
 // Proxy Code Execution Endpoint (With Sarvam AI LLM Fallback)
-app.post('/api/execute', async (req, res) => {
-    const { language, code, testCases, problemTitle } = req.body;
+// Code execution + grading (Piston). Same contract as the main server's /api/execute:
+// { success, engine, results: [{passed, input, expected, actual, stdout, error?}], output, compilerOutput, error? }
+const { gradeSubmission } = require('./services/codeGrader');
 
-    if (!language || !code) {
-        return res.status(400).json({ error: 'Language and code are required' });
-    }
-
-    const executionUrl = process.env.EXECUTION_API_URL;
-    let pistonSuccess = false;
-    let pistonResult = null;
-
-    if (executionUrl && !executionUrl.includes('ip-addr')) {
-        try {
-            let version = "0.0.0";
-            let langMap = language;
-
-            if (language === 'python') version = "3.10.0";
-            else if (language === 'javascript') version = "18.15.0";
-            else if (language === 'cpp') { version = "10.2.0"; langMap = "c++"; }
-
-            const payload = {
-                language: langMap,
-                version: version,
-                files: [{ content: code }]
-            };
-
-            const response = await axios.post(executionUrl, payload, {
-                headers: { 'Content-Type': 'application/json' },
-                timeout: 8000
-            });
-
-            if (response.data && response.data.run) {
-                pistonResult = response.data;
-                pistonSuccess = true;
-            }
-        } catch (error) {
-            console.warn("Execution API call failed, falling back to Sarvam AI code evaluation:", error.message);
-        }
-    }
-
-    if (pistonSuccess && pistonResult) {
-        return res.json(pistonResult);
-    }
-
-    // ── Sarvam AI LLM Code Execution Fallback ─────────────────────────────────
-    try {
-        console.log("Evaluating code execution using Sarvam AI...");
-        const sarvamService = require('./services/sarvamService');
-        
-        const prompt = `You are a code execution engine.
-Evaluate the code for problem "${problemTitle || 'Coding Problem'}" written in ${language}.
+async function aiEstimateCode({ code, language, testCases, problemTitle }) {
+    const sarvam = require('./services/sarvamService');
+    const prompt = `You are reviewing ${language} code for the problem "${problemTitle || 'Coding Problem'}".
+Mentally trace the code for each test case and predict its return value.
 
 USER CODE:
 \`\`\`${language}
@@ -179,53 +136,51 @@ ${code}
 TEST CASES:
 ${JSON.stringify(testCases || [], null, 2)}
 
-INSTRUCTION:
-Evaluate if the code correctly solves each test case.
-Return ONLY valid JSON matching this exact structure (no markdown formatting, no extra text):
-{
-  "run": {
-    "output": "All test cases evaluated.",
-    "results": [
-      {
-        "passed": true,
-        "input": "sample input",
-        "expected": "expected output",
-        "actual": "actual output",
-        "stdout": ""
-      }
-    ]
-  }
-}`;
+Return ONLY JSON: {"results":[{"input":"...","expected":"...","actual":"<predicted output>","passed":true|false}]}`;
+    const raw = await sarvam.generateCompletion(prompt, { temperature: 0.1 });
+    let json = raw.replace(/```json\n?|\n?```/g, '').trim();
+    json = json.substring(json.indexOf('{'), json.lastIndexOf('}') + 1);
+    const parsed = JSON.parse(json);
+    const results = (parsed.results || []).map((r, i) => ({
+        passed: r.passed === true,
+        input: r.input ?? testCases[i]?.input,
+        expected: r.expected ?? testCases[i]?.output,
+        actual: String(r.actual ?? ''),
+        stdout: '',
+    }));
+    return {
+        success: results.length > 0 && results.every((r) => r.passed),
+        engine: 'ai-estimate',
+        results,
+        output: 'Code execution service unavailable: these results are an AI estimate, not a real run.',
+        compilerOutput: '',
+    };
+}
 
-        const llmResponse = await sarvamService.generateCompletion(prompt, { temperature: 0.1 });
-        let cleanJson = llmResponse.replace(/```json\n?|\n?```/g, '').trim();
-        const firstBrace = cleanJson.indexOf('{');
-        const lastBrace = cleanJson.lastIndexOf('}');
-        if (firstBrace !== -1 && lastBrace !== -1) {
-            cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
+app.post('/api/execute', async (req, res) => {
+    const { language, code, testCases, problemTitle } = req.body || {};
+    if (!language || !code) {
+        return res.status(400).json({ error: 'Language and code are required' });
+    }
+    const executionUrl = process.env.EXECUTION_API_URL;
+
+    if (executionUrl) {
+        try {
+            return res.json(await gradeSubmission({ code, language, testCases, executionUrl }));
+        } catch (error) {
+            console.warn('Code execution service unreachable:', error.message);
         }
+    }
 
-        const parsed = JSON.parse(cleanJson);
-        return res.json(parsed);
+    try {
+        return res.json(await aiEstimateCode({ code, language, testCases: testCases || [], problemTitle }));
     } catch (llmErr) {
-        console.error("Sarvam AI Code Evaluation Fallback Error:", llmErr.message);
-
-        const defaultResults = (testCases || []).map(tc => ({
-            passed: true,
-            input: tc.input,
-            expected: tc.output,
-            actual: tc.output,
-            stdout: "Code executed successfully."
-        }));
-
-        return res.json({
-            run: {
-                output: "Code executed successfully.",
-                results: defaultResults,
-                stdout: "Code syntax & logic validated successfully. Simulated execution pass.",
-                stderr: "",
-                code: 0
-            }
+        console.error('AI estimate fallback failed:', llmErr.message);
+        return res.status(503).json({
+            success: false,
+            engine: 'unavailable',
+            error: 'Code execution service is unavailable. Please try again later.',
+            results: (testCases || []).map((tc) => ({ passed: false, input: tc.input, expected: tc.output, actual: '', stdout: '', error: 'Not run' })),
         });
     }
 });

@@ -220,39 +220,36 @@ export async function evaluateCode({
 }) {
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
+    // The backend runs the code on Piston against every test case and compares outputs.
+    // Never fabricate a pass: if the backend can't be reached, report the failure.
     try {
         const res = await fetch(`${backendUrl}/api/execute`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                language,
-                code,
-                testCases,
-                problemTitle
-            })
+            body: JSON.stringify({ language, code, testCases, problemTitle })
         });
-
-        if (res.ok) {
-            const data = await res.json();
-            return data;
+        const data = await res.json().catch(() => ({}));
+        if (res.ok || Array.isArray(data.results)) {
+            return {
+                success: data.success === true,
+                results: Array.isArray(data.results) ? data.results : [],
+                compilerOutput: [data.engine === "ai-estimate" ? data.output : "", data.compilerOutput || ""].filter(Boolean).join("\n"),
+                error: data.error as string | undefined,
+                engine: data.engine as string | undefined,
+            };
         }
-    } catch (err) {
-        console.warn("Backend execution API call failed, using code runner evaluation fallback:", err);
+        throw new Error(data.error || `Execution failed (${res.status})`);
+    } catch (err: any) {
+        console.warn("Backend execution API call failed:", err);
+        return {
+            success: false,
+            results: (testCases || []).map((tc) => ({
+                passed: false, input: tc.input, expected: tc.output, actual: "", stdout: "", error: "Not run"
+            })),
+            compilerOutput: "",
+            error: `Code execution service unavailable: ${err?.message || "network error"}`,
+            engine: "unavailable",
+        };
     }
-
-    // Default test results fallback
-    const results = (testCases || []).map((tc) => ({
-        passed: true,
-        input: tc.input,
-        expected: tc.output,
-        actual: tc.output,
-        stdout: "Code executed successfully."
-    }));
-
-    return {
-        success: true,
-        results,
-        compilerOutput: "Code compiled & evaluated successfully."
-    };
 }
 
