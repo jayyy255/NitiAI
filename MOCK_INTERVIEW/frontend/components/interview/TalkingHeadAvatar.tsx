@@ -8,6 +8,9 @@ interface TalkingHeadAvatarProps {
   isAiSpeaking?: boolean;
   isListening?: boolean;
   className?: string;
+  /** Interview language (e.g. "hi-IN"). Accepted for the caller's convenience; lip-sync stays
+   *  English because the TalkingHead package only ships en/fi/de/fr/lt lip-sync modules. */
+  selectedLanguage?: string;
 }
 
 const LOCAL_RECRUITER_GLB = "/avatars/male_recruiter.glb";

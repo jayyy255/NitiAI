@@ -20,7 +20,7 @@ TEST CASES:
 ${JSON.stringify(testCases || [], null, 2)}
 
 Return ONLY JSON: {"results":[{"input":"...","expected":"...","actual":"<predicted output>","passed":true|false}]}`;
-    const raw = await sarvamService.generateCompletion(prompt, { temperature: 0.1 });
+    const raw = await sarvamService.generateCompletion(prompt, "You are a meticulous code reviewer. Respond with JSON only.");
     let json = raw.replace(/```json\n?|\n?```/g, "").trim();
     json = json.substring(json.indexOf("{"), json.lastIndexOf("}") + 1);
     const parsed = JSON.parse(json);

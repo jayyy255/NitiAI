@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import { OPENROUTER_FREE_MODELS } from "@/lib/openrouter-models";
 import { X, Send, Sparkles, Brain, Code, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CodeBlock, CodeBlockCode, CodeBlockGroup } from '@/components/ui/code-block';
@@ -35,12 +36,7 @@ export default function AIChatModal({ isOpen, onClose, currentCode, problem }: A
 
   if (!isOpen) return null;
 
-  const OPENROUTER_MODELS = [
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "qwen/qwen-2.5-coder-32b-instruct:free",
-    "deepseek/deepseek-r1:free",
-    "mistralai/mistral-7b-instruct:free",
-  ];
+  const OPENROUTER_MODELS = OPENROUTER_FREE_MODELS;
 
   const callOpenRouter = async (messagesPayload: any[]) => {
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";

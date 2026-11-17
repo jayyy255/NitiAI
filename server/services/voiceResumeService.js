@@ -146,14 +146,19 @@ class VoiceResumeService {
           model: "sarvam-105b",
           messages: messages,
           temperature: options.temperature || 0.2,
-          max_tokens: 500,
+          // reasoning tokens count against max_tokens; 500 left nothing for the answer
+          max_tokens: 4096,
         },
         {
           headers: this.getHeaders(),
-          timeout: 25000,
+          timeout: 60000,
         }
       );
-      const content = response.data.choices[0]?.message?.content || "{}";
+      const choice = response.data.choices[0];
+      if (!choice?.message?.content) {
+        console.warn(`⚠️ Sarvam returned empty content (finish_reason=${choice?.finish_reason})`);
+      }
+      const content = choice?.message?.content || "{}";
       return { text: content };
     } catch (error) {
       console.warn("⚠️ Sarvam Chat Completion Notice:", error.message);

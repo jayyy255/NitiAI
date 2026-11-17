@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "postinstall": "node scripts/patch-talkinghead.mjs",
+    "predev": "node scripts/patch-talkinghead.mjs",
+    "prebuild": "node scripts/patch-talkinghead.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -10,7 +13,7 @@
   },
   "dependencies": {
     "@ark-ui/react": "^5.30.0",
-    "@met4citizen/talkinghead": "github:met4citizen/talkinghead",
+    "@met4citizen/talkinghead": "github:met4citizen/talkinghead#eed58d198076a7e1e825f804802921c4d3804d46",
     "@monaco-editor/react": "^4.7.0",
     "@radix-ui/react-icons": "^1.3.2",
     "@radix-ui/react-progress": "^1.1.8",

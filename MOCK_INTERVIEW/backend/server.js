@@ -137,7 +137,7 @@ TEST CASES:
 ${JSON.stringify(testCases || [], null, 2)}
 
 Return ONLY JSON: {"results":[{"input":"...","expected":"...","actual":"<predicted output>","passed":true|false}]}`;
-    const raw = await sarvam.generateCompletion(prompt, { temperature: 0.1 });
+    const raw = await sarvam.generateCompletion(prompt, 'You are a meticulous code reviewer. Respond with JSON only.', 'sarvam-105b', { strict: true });
     let json = raw.replace(/```json\n?|\n?```/g, '').trim();
     json = json.substring(json.indexOf('{'), json.lastIndexOf('}') + 1);
     const parsed = JSON.parse(json);
@@ -221,12 +221,14 @@ app.post('/api/sarvam/generate-interview', async (req, res) => {
         const completion = await sarvamService.generateCompletion(
             prompt,
             systemInstruction || 'You are Sarvam AI, an elite technical interviewer and problem creator.',
-            'sarvam-105b'
+            'sarvam-105b',
+            { strict: true }
         );
         res.json({ success: true, text: completion });
     } catch (e) {
         console.error("Sarvam generate interview error:", e.message);
-        res.status(500).json({ success: false, error: e.message });
+        // 502 so the frontend falls back to OpenRouter instead of treating this as success
+        res.status(502).json({ success: false, error: e.message });
     }
 });
 

@@ -1,4 +1,5 @@
 "use client";
+import { OPENROUTER_FREE_MODELS } from "./openrouter-models";
 
 export interface DSAQuestion {
     title: string;
@@ -109,13 +110,7 @@ export async function generateInterviewContent(config: GenerateConfig): Promise<
 
     // ── Secondary Fallback: OpenRouter Models ─────────────────────────────────
     if (!rawContent && apiKey && apiKey !== 'your_key_here') {
-        const FALLBACK_MODELS = [
-            "meta-llama/llama-3.3-70b-instruct:free",
-            "qwen/qwen-2.5-coder-32b-instruct:free",
-            "deepseek/deepseek-r1:free",
-            "mistralai/mistral-7b-instruct:free",
-            "google/gemma-2-9b-it:free"
-        ];
+        const FALLBACK_MODELS = OPENROUTER_FREE_MODELS;
 
         for (const model of FALLBACK_MODELS) {
             const controller = new AbortController();

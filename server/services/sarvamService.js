@@ -107,12 +107,19 @@ class SarvamService {
             { role: 'system', content: finalInstruction },
             { role: 'user', content: prompt }
           ],
-          temperature: 0.2
+          temperature: 0.2,
+          // sarvam-105b is a reasoning model: reasoning tokens count against max_tokens. With the
+          // default (2048) long prompts spend it all on reasoning and return empty content.
+          max_tokens: 8192
         },
-        { headers: { 'api-subscription-key': this.apiKey } }
+        { headers: { 'api-subscription-key': this.apiKey }, timeout: 120000 }
       );
 
-      let content = response.data.choices[0].message.content || '';
+      const choice = response.data.choices[0];
+      if (!choice.message.content) {
+        throw new Error(`empty completion (finish_reason=${choice.finish_reason})`);
+      }
+      let content = choice.message.content;
       // Strip markdown code block wrappers if present (e.g. ```json ... ```)
       content = content.replace(/```json/g, '').replace(/```/g, '').trim();
 
